@@ -291,7 +291,7 @@ import lombok.Setter;
 public class SignupRequest {
 
     @NotBlank(message = "username은 필수입니다.")
-    @Size(min = 4, max = 20, message = "username은 4~20자여야 합니다.")
+    @Size(min = 2, max = 12, message = "username은 2~12자여야 합니다.")
     @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "username은 영문, 숫자, 언더스코어만 사용할 수 있습니다.")
     private String username;
 
@@ -592,7 +592,7 @@ Content-Type: application/json
 
 | 필드 | 타입 | 필수 | 제약조건 |
 | --- | --- | --- | --- |
-| `username` | string | O | 4~20자, 영문/숫자/언더스코어(`_`)만 허용, 중복 불가 |
+| `username` | string | O | 2~12자, 영문/숫자/언더스코어(`_`)만 허용, 중복 불가 |
 | `password` | string | O | 8~64자 |
 | `nickname` | string | O | 1~50자, 화면에 표시되는 별명 (username과 별개 값) |
 
