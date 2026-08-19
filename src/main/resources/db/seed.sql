@@ -1,5 +1,5 @@
 -- ============================================================
--- SoundScape 시드 데이터 (users 1명 + music 26곡 + music_theme 다중매핑)
+-- SoundScape 시드 데이터 (users 1명 + music 50곡 + music_theme 다중매핑)
 -- 실행 순서: schema.sql -> seed.sql
 -- ============================================================
 USE soundscape;
@@ -36,7 +36,31 @@ INSERT INTO music (id, title, artist, audio_object_key, genre, brightness, energ
 (23, 'BLACK BOX - Vlog 1', 'BLACKBOX', 'music/blackbox_vlog1.mp3', 'POP', 0.91, 0.64, 0.48, 0.79, 0.92, 0.38, 130, NOW(), NOW()),
 (24, 'Acoustic Indie Folk', 'Markjuly', 'music/indie_folk.mp3', 'POP', 0.85, 0.68, 0.51, 0.89, 0.88, 0.44, 131, NOW(), NOW()),
 (25, 'Lazy Summer Days', 'HoggyArt', 'music/summer_days.mp3', 'POP', 0.81, 0.58, 0.62, 0.82, 0.86, 0.53, 127, NOW(), NOW()),
-(26, 'Inspire Indie Acoustic', 'ONALDIN_Music', 'music/indie_acoustic.mp3', 'POP', 0.87, 0.73, 0.46, 0.86, 0.91, 0.52, 158, NOW(), NOW());
+(26, 'Inspire Indie Acoustic', 'ONALDIN_Music', 'music/indie_acoustic.mp3', 'POP', 0.87, 0.73, 0.46, 0.86, 0.91, 0.52, 158, NOW(), NOW()),
+(27, 'Rainy_Jazz_Rainy_Night_Music', 'alex-morgan', 'music/Rainy_Jazz_Rainy_Night_Music.mp3', 'JAZZ_CLASSICAL_NEWAGE', 0.34, 0.31, 0.89, 0.86, 0.61, 0.84, 153, NOW(), NOW()),
+(28, 'Lofi_Fantasy_Piano_Rainy_Eden', 'Akiko_Shiina', 'music/Lofi_Fantasy_Piano_Rainy_Eden.mp3', 'LOFI_INSTRUMENTAL', 0.42, 0.28, 0.92, 0.74, 0.58, 0.88, 314, NOW(), NOW()),
+(29, 'rainy_lofi_city_lofi_music', 'lofidreams', 'music/rainy_lofi_city_lofi_music.mp3', 'LOFI_INSTRUMENTAL', 0.38, 0.26, 0.91, 0.78, 0.64, 0.86, 240, NOW(), NOW()),
+(30, 'rain_rain_meditation_music', 'andriig', 'music/rain_rain_meditation_music.mp3', 'LOFI_INSTRUMENTAL', 0.32, 0.16, 0.96, 0.84, 0.68, 0.82, 126, NOW(), NOW()),
+(31, 'cozy_bedroom_rain_ambient_sounds', 'CeleronBeats', 'music/cozy_bedroom_rain_ambient_sounds.mp3', 'LOFI_INSTRUMENTAL', 0.36, 0.18, 0.94, 0.88, 0.66, 0.85, 146, NOW(), NOW()),
+(32, 'rain_rain_sleep_music', 'andriig', 'music/rain_rain_sleep_music.mp3', 'LOFI_INSTRUMENTAL', 0.31, 0.15, 0.97, 0.87, 0.63, 0.87, 139, NOW(), NOW()),
+(33, 'our_distance', 'HarumachiMusic', 'music/our_distance.mp3', 'JAZZ_CLASSICAL_NEWAGE', 0.22, 0.18, 0.94, 0.76, 0.52, 0.92, 304, NOW(), NOW()),
+(34, 'ambient_atlasaudio', 'AtlasAudio', 'music/ambient_atlasaudio.mp3', 'LOFI_INSTRUMENTAL', 0.28, 0.14, 0.96, 0.64, 0.58, 0.95, 150, NOW(), NOW()),
+(35, 'ambient_leberch', 'leberch', 'music/ambient_leberch.mp3', 'JAZZ_CLASSICAL_NEWAGE', 0.31, 0.24, 0.88, 0.68, 0.54, 0.91, 124, NOW(), NOW()),
+(36, 'beyond_the_night_sky', 'u_0tyyfec3hz', 'music/beyond_the_night_sky.mp3', 'LOFI_INSTRUMENTAL', 0.23, 0.37, 0.81, 0.79, 0.62, 0.93, 154, NOW(), NOW()),
+(37, 'night_drive', 'u_hxpwylf17x', 'music/night_drive.mp3', 'LOFI_INSTRUMENTAL', 0.29, 0.48, 0.74, 0.71, 0.65, 0.89, 140, NOW(), NOW()),
+(38, 'relaxation_and_healing_gently_as_night_comes', 'MellowBeansMusic', 'music/relaxation_and_healing_gently_as_night_comes.mp3', 'JAZZ_CLASSICAL_NEWAGE', 0.26, 0.21, 0.92, 0.86, 0.64, 0.94, 140, NOW(), NOW()),
+(39, 'happy_acoustic_guitar', 'Tunetank', 'music/happy_acoustic_guitar.mp3', 'POP', 0.92, 0.64, 0.58, 0.88, 0.95, 0.24, 207, NOW(), NOW()),
+(40, 'background_happy', 'AtlasAudio', 'music/background_happy.mp3', 'POP', 0.94, 0.72, 0.42, 0.82, 0.96, 0.18, 115, NOW(), NOW()),
+(41, 'sunny_and_happy_acoustic_joy', 'Sonican', 'music/sunny_and_happy_acoustic_joy.mp3', 'POP', 0.95, 0.68, 0.46, 0.85, 0.94, 0.21, 117, NOW(), NOW()),
+(42, 'energetic_uplifting_pop', 'Music_For_Videos', 'music/energetic_uplifting_pop.mp3', 'POP', 0.91, 0.84, 0.28, 0.76, 0.92, 0.15, 131, NOW(), NOW()),
+(43, 'pretty_lights', 'JoyInSound', 'music/pretty_lights.mp3', 'POP', 0.96, 0.78, 0.34, 0.84, 0.93, 0.19, 106, NOW(), NOW()),
+(44, 'uplifting_pop_cruising', 'ONALDIN_Music', 'music/uplifting_pop_cruising.mp3', 'POP', 0.93, 0.76, 0.38, 0.81, 0.95, 0.22, 143, NOW(), NOW()),
+(45, 'cherry_bomb', 'Crusadope', 'music/cherry_bomb.mp3', 'POP', 0.88, 0.96, 0.08, 0.58, 0.92, 0.34, 209, NOW(), NOW()),
+(46, 'glitter_groove', 'MangMARU', 'music/glitter_groove.mp3', 'POP', 0.94, 0.91, 0.12, 0.72, 0.95, 0.16, 48, NOW(), NOW()),
+(47, 'night_party_time_upbeat_festival_edm', 'DIMMYSAD', 'music/night_party_time_upbeat_festival_edm.mp3', 'POP', 0.85, 0.97, 0.06, 0.64, 0.94, 0.42, 156, NOW(), NOW()),
+(48, 'party_club', 'Dreamy_Rabbit', 'music/party_club.mp3', 'POP', 0.89, 0.94, 0.10, 0.68, 0.93, 0.28, 180, NOW(), NOW()),
+(49, 'energy_joyinsound', 'JoyInSound', 'music/energy_joyinsound.mp3', 'POP', 0.82, 0.98, 0.05, 0.62, 0.91, 0.14, 65, NOW(), NOW()),
+(50, 'rock_it', 'Coma_Media', 'music/rock_it.mp3', 'POP', 0.92, 0.97, 0.07, 0.65, 0.94, 0.15, 93, NOW(), NOW());
 
 -- [2. music_theme 테이블 시드 데이터 다중 테마 매핑]
 INSERT INTO music_theme (music_id, theme) VALUES
@@ -65,4 +89,28 @@ INSERT INTO music_theme (music_id, theme) VALUES
 (23, 'WALK_DRIVE_TRAVEL'), (23, 'BRIGHT_DAY'), (23, 'REST_HEALING'),
 (24, 'WALK_DRIVE_TRAVEL'), (24, 'BRIGHT_DAY'), (24, 'REST_HEALING'),
 (25, 'WALK_DRIVE_TRAVEL'), (25, 'BRIGHT_DAY'), (25, 'REST_HEALING'),
-(26, 'WALK_DRIVE_TRAVEL'), (26, 'BRIGHT_DAY'), (26, 'REST_HEALING');
+(26, 'WALK_DRIVE_TRAVEL'), (26, 'BRIGHT_DAY'), (26, 'REST_HEALING'),
+(27, 'RAINY_DAY'), (27, 'NIGHT_DREAMY'), (27, 'REST_HEALING'),
+(28, 'RAINY_DAY'), (28, 'NIGHT_DREAMY'), (28, 'REST_HEALING'),
+(29, 'RAINY_DAY'), (29, 'NIGHT_DREAMY'), (29, 'REST_HEALING'),
+(30, 'RAINY_DAY'), (30, 'REST_HEALING'), (30, 'NIGHT_DREAMY'),
+(31, 'RAINY_DAY'), (31, 'REST_HEALING'), (31, 'NIGHT_DREAMY'),
+(32, 'RAINY_DAY'), (32, 'REST_HEALING'), (32, 'NIGHT_DREAMY'),
+(33, 'NIGHT_DREAMY'), (33, 'REST_HEALING'), (33, 'RAINY_DAY'),
+(34, 'NIGHT_DREAMY'), (34, 'REST_HEALING'), (34, 'STUDY_FOCUS'),
+(35, 'NIGHT_DREAMY'), (35, 'REST_HEALING'), (35, 'RAINY_DAY'),
+(36, 'NIGHT_DREAMY'), (36, 'REST_HEALING'), (36, 'WALK_DRIVE_TRAVEL'),
+(37, 'NIGHT_DREAMY'), (37, 'WALK_DRIVE_TRAVEL'), (37, 'REST_HEALING'),
+(38, 'NIGHT_DREAMY'), (38, 'REST_HEALING'), (38, 'RAINY_DAY'),
+(39, 'BRIGHT_DAY'), (39, 'WALK_DRIVE_TRAVEL'), (39, 'REST_HEALING'),
+(40, 'BRIGHT_DAY'), (40, 'PARTY_ENERGY'), (40, 'WALK_DRIVE_TRAVEL'),
+(41, 'BRIGHT_DAY'), (41, 'WALK_DRIVE_TRAVEL'), (41, 'PARTY_ENERGY'),
+(42, 'BRIGHT_DAY'), (42, 'PARTY_ENERGY'), (42, 'WALK_DRIVE_TRAVEL'),
+(43, 'BRIGHT_DAY'), (43, 'WALK_DRIVE_TRAVEL'), (43, 'PARTY_ENERGY'),
+(44, 'BRIGHT_DAY'), (44, 'WALK_DRIVE_TRAVEL'), (44, 'PARTY_ENERGY'),
+(45, 'PARTY_ENERGY'), (45, 'WALK_DRIVE_TRAVEL'),
+(46, 'PARTY_ENERGY'), (46, 'BRIGHT_DAY'),
+(47, 'PARTY_ENERGY'), (47, 'NIGHT_DREAMY'),
+(48, 'PARTY_ENERGY'), (48, 'WALK_DRIVE_TRAVEL'),
+(49, 'PARTY_ENERGY'), (49, 'WALK_DRIVE_TRAVEL'),
+(50, 'PARTY_ENERGY'), (50, 'WALK_DRIVE_TRAVEL');
