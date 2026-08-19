@@ -12,10 +12,13 @@ DROP TABLE IF EXISTS music;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    nickname    VARCHAR(50)  NOT NULL,
-    created_at  DATETIME     NOT NULL,
-    PRIMARY KEY (id)
+    id             BIGINT       NOT NULL AUTO_INCREMENT,
+    username       VARCHAR(50)  NOT NULL,
+    password_hash  VARCHAR(100) NOT NULL,
+    nickname       VARCHAR(50)  NOT NULL,
+    created_at     DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_users_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE music (

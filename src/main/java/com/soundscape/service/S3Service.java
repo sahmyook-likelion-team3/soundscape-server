@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -70,6 +71,21 @@ public class S3Service {
                 .build();
 
         return s3Presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    /** object key로 S3 객체 삭제. key가 null이면 아무것도 하지 않는다. 실패해도 예외를 던지지 않고 로그만 남긴다(삭제 흐름 자체를 막지 않기 위함). */
+    public void deleteObject(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            return;
+        }
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(objectKey)
+                    .build());
+        } catch (RuntimeException e) {
+            log.warn("[S3] 삭제 실패 key={}", objectKey, e);
+        }
     }
 
     private String resolveExtension(String originalFilename) {

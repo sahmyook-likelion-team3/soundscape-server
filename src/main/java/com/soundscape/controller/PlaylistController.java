@@ -65,4 +65,13 @@ public class PlaylistController {
         return playlistService.findDetail(userId, playlistId);
     }
 
+    /** 5. 플리 삭제 (X-User-Id 필수) */
+    @DeleteMapping("/playlists/{playlistId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(
+            @RequestHeader(value = USER_HEADER, required = false) Long userId,
+            @PathVariable Long playlistId) {
+        playlistService.delete(userId, playlistId);
+    }
+
 }

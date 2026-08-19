@@ -22,6 +22,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-restclient'
+	implementation 'org.springframework.security:spring-security-crypto'
 	implementation platform('software.amazon.awssdk:bom:2.25.60')
 	implementation 'software.amazon.awssdk:s3'
 	compileOnly 'org.projectlombok:lombok'

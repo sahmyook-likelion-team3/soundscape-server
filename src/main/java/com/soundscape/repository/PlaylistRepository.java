@@ -15,4 +15,7 @@ public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
 
     @Query("select distinct p from Playlist p left join fetch p.items where p.id = :playlistId and p.user.id = :userId")
     Optional<Playlist> findByIdAndUserIdWithItems(@Param("playlistId") Long playlistId, @Param("userId") Long userId);
+
+    @Query("select p from Playlist p where p.id = :playlistId and p.user.id = :userId")
+    Optional<Playlist> findByIdAndUserId(@Param("playlistId") Long playlistId, @Param("userId") Long userId);
 }

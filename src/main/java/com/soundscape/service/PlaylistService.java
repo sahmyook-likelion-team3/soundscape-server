@@ -79,6 +79,17 @@ public class PlaylistService {
         return toDetail(playlist);
     }
 
+    /** 플리 삭제. 본인 소유가 아니거나 존재하지 않으면 404 (소유권 정보를 노출하지 않기 위해 403이 아닌 404로 통일). */
+    @Transactional
+    public void delete(Long userId, Long playlistId) {
+        requireUser(userId);
+        Playlist playlist = playlistRepository.findByIdAndUserId(playlistId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLAYLIST_NOT_FOUND));
+
+        s3Service.deleteObject(playlist.getCoverObjectKey());
+        playlistRepository.delete(playlist);
+    }
+
     /** 저장 요청 검증: 곡 수, 중복, 존재 여부, 사진 필수 여부. 현재 MVP는 사진 기반만 지원한다. */
     private void validateSaveRequest(PlaylistSaveRequest request, MultipartFile photo) {
         List<Long> musicIds = request.getMusicIds();

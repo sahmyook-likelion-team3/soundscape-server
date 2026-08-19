@@ -5,7 +5,9 @@
 USE soundscape;
 
 -- [0. users 시드] X-User-Id: 1 임시 인증용 데모 계정. 없으면 플리 저장 시 FK 제약 위반 발생.
-INSERT INTO users (id, nickname, created_at) VALUES (1, 'demo_user', NOW());
+-- username: demo_user / password: demo1234
+INSERT INTO users (id, username, password_hash, nickname, created_at)
+VALUES (1, 'demo_user', '$2b$10$GUksG5juSaJ2qv29D8Dqb.pWs0h/jX05T9gvcS01wD5UZC6g6yBtK', 'demo_user', NOW());
 
 -- [1. music 테이블 시드 데이터 26곡]
 INSERT INTO music (id, title, artist, audio_object_key, genre, brightness, energy, calmness, warmth, positivity, dreaminess, duration_seconds, created_at, updated_at) VALUES
