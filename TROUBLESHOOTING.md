@@ -71,4 +71,34 @@ MVP를 "사진 기반 추천만" 지원하도록 범위를 좁히기로 결정�
 | 관리자가 음원 캐시를 리로드하는 도중 아주 짧은 순간 조회 결과가 어긋날 수 있음(캐시 필드 3개가 원자적으로 갱신되지 않음) | 관리자가 리로드 버튼을 누르는 그 찰나에 동시 요청이 와야만 발생하는 극히 낮은 확률의 상황이라 낮은 우선순위로 분류 |
 | 로컬(Windows, 한글 경로)에서 `./gradlew test` 실행 시 `ClassNotFoundException` 발생 | 클래스 파일은 정상 생성되는데 테스트 워커의 classpath 처리 과정에서만 실패해, 프로젝트 경로에 포함된 한글(`김상진`)로 인한 Gradle 테스트 워커의 인코딩 문제로 추정. `compileJava`/`compileTestJava`는 항상 정상이라 코드 자체엔 문제가 없음을 확인했고, 로컬 환경 이슈라 배포 환경(CI, 가비아 서버)에서는 발생하지 않을 가능성이 높아 보류 |
 | 폰카메라로 세로로 찍은 사진이 AI 분석 시 옆으로 누운 채로 전달될 수 있음 | `OpenAiVisionService.resizeToJpeg()`가 EXIF 방향(Orientation) 태그를 무시하고 픽셀만 리사이즈함. S3에 저장되는 원본 커버는 EXIF가 유지되어 화면 표시는 대체로 정상이지만, AI에게 전달되는 리사이즈본은 실제로 회전된 상태일 수 있음 | 실제 배포 환경에서 종단 테스트(로컬 프론트 + 배포 백엔드 + 실제 사진)로 정상 동작을 확인했으나, 폰카메라 세로 촬영 케이스는 별도 검증 필요. 해결 방향(프롬프트 지시 vs 서버단 EXIF 회전 보정)은 프론트 팀과 논의 후 결정 예정이라 보류 |
-| 저장한 플레이리스트를 삭제하는 API가 없음 | 원 API 명세서와 프론트 구현 모두에 삭제 기능이 없었음 | 실사용에는 필요해 보이는 기능이라 `DELETE /playlists/{id}` 추가를 백로그에 등록. 우선순위상 지금 당장 구현하지 않기로 결정 |
+| 저장한 플레이리스트를 삭제하는 API가 없음 | 원 API 명세서와 프론트 구현 모두에 삭제 기능이 없었음 | `DELETE /playlists/{id}` 구현 완료 (아래 6절 참고) |
+
+---
+
+## 6. 회원가입/로그인/삭제 API 추가 및 HTTPS 배포 과정에서 발견한 문제
+
+MVP를 "X-User-Id 헤더 임시 인증"에서 "실제 아이디+비밀번호 인증"으로 확장하고, 백엔드를 HTTPS로 전환하는 과정에서 발견·수정한 문제들이다.
+
+### 6-1. 배포/인프라
+
+| 문제 | 원인 | 해결 |
+| --- | --- | --- |
+| 프론트(HTTPS, Vercel) → 백엔드(HTTP) 요청이 브라우저에서 전부 차단됨(Mixed Content) | 백엔드가 평문 HTTP로만 배포되어 있었음 | 도메인 구매 없이 `1-201-116-122.nip.io`(IP 기반 무료 서브도메인) + Nginx 리버스 프록시 + Let's Encrypt로 HTTPS 전환. 기존 HTTP(8080) 직접 접근도 그대로 유지해 롤백 경로 확보 |
+| 프론트가 실제로는 항상 `http://localhost:8080`으로 요청을 보내고 있었음 | Vercel 프로젝트에 `NEXT_PUBLIC_API_BASE_URL` 환경변수 자체가 설정된 적이 없어서, Next.js 빌드 시 코드가 치환되지 않고 기본값(`localhost:8080`)으로 항상 폴백됨 | 프론트 팀에 Vercel 환경변수 설정 요청(백엔드에서 고칠 수 있는 부분 아님) |
+| 2MB 이상 사진 업로드가 전부 실패(폰 사진 대부분이 여기 해당) | Nginx의 기본 업로드 제한(`client_max_body_size` 기본값 1MB)이 앱의 실제 제한(20MB)보다 먼저 걸려서, 요청이 앱까지 도달하지도 못함. 게다가 이 경우 앱의 JSON 에러가 아니라 Nginx의 생 HTML 에러 페이지가 나감 | `client_max_body_size 25M`로 설정(앱 제한 20MB보다 살짝 크게 잡아, 20MB 이하는 전부 앱까지 도달시켜 앱의 `FILE_TOO_LARGE` JSON 에러로 일관되게 응답하도록 함) |
+| 새로 배포된 프론트 도메인(`soundscape-front-seven.vercel.app`)에서 오는 요청이 전부 CORS로 막힘 | `CORS_ALLOWED_ORIGINS`에 예전 도메인(`soundscape-front.vercel.app`)만 등록돼 있었음 | `.env`에 새 도메인 추가 후 컨테이너 재시작 |
+| `DELETE /playlists/{id}` 배포 직후 프론트에서 호출하면 CORS로 막힐 뻔함 | `WebConfig`의 `allowedMethods`가 `GET, POST, OPTIONS`뿐이었고 `DELETE` 추가를 깜빡함(실행 문서 작성 시점의 누락) | 배포 전 실제 HTTPS 엔드포인트에 OPTIONS 프리플라이트를 직접 날려서 발견, `allowedMethods`에 `DELETE` 추가 |
+| 운영 DB에 이미 있던 `demo_user`(id=1) 계정에 로그인 정보를 부여하는 마이그레이션 중 비밀번호 해시가 깨짐 | SSH 원격 명령 문자열 안에 `$2b$10$...` 형태의 BCrypt 해시를 넣었더니, 여러 겹의 쉘 이스케이프(로컬 bash → SSH → docker exec → mysql -e) 과정에서 `$` 뒤의 변수처럼 보이는 부분이 사라짐 | SQL을 로컬 파일로 작성한 뒤 `docker exec -i mysql ... < file.sql`로 stdin 리다이렉션해서 쉘 변수 치환을 아예 거치지 않도록 재실행 |
+
+### 6-2. 코드 (실제 배포 서버에서 재현·수정)
+
+| 문제 | 원인 | 해결 |
+| --- | --- | --- |
+| 같은 아이디로 정확히 동시에 회원가입 요청 2개를 보내면 하나가 `409 DUPLICATE_USERNAME`이 아니라 `500 INTERNAL_ERROR`로 응답함(실제로 재현·확인함) | `AuthService.signup()`이 `existsByUsername()` 체크와 실제 INSERT 사이에 시간차가 있는 TOCTOU 경쟁 조건. DB의 `UNIQUE KEY uk_users_username` 위반(`DataIntegrityViolationException`)을 `GlobalExceptionHandler`가 별도로 잡지 않아 일반 500으로 노출됨 | 확률이 매우 낮고(정확히 같은 타이밍이어야 함) 해커톤 시연 중 발생 가능성이 없다고 판단해 **의도적으로 보류**(5절과 동일한 성격의 트레이드오프) |
+| `request` 멀티파트 파트를 `application/json`이 아닌 다른 Content-Type으로 보내면 `500 INTERNAL_ERROR` | `HttpMediaTypeNotSupportedException`이 `GlobalExceptionHandler`의 세부 핸들러에 안 잡히고 일반 예외 핸들러로 떨어짐 | 프론트 코드(`api.ts`)가 항상 `application/json`을 명시해서 보내므로 실제로는 이 경로를 탈 수 없음을 확인. 방어 코드 공백으로만 기록하고 보류 |
+| `S3Service.presignedUrl()`에 예외 처리가 전혀 없음(다른 S3 메서드는 전용 에러코드나 로그 처리가 있음) | 목록/상세/저장/추천 등 거의 모든 읽기 경로에서 호출되는데, S3/자격증명 문제 발생 시 뭉뚱그려진 500으로만 응답 | 발생 확률이 매우 낮고(같은 자격증명으로 이 세션 내내 수십 회 정상 동작 확인) 시연 중 재현 가능성이 없다고 판단해 보류 |
+| 음원이 캐시에서 사라지면(현재는 음원 삭제 기능 자체가 없어 불가능) 플레이리스트 상세에서 조용히 빠짐 | `PlaylistService.toDetail()`이 `musicCache.findById()`가 `null`이면 그냥 필터링해서 제외 | 현재 코드 경로상 트리거 불가능해 대응 보류. 추후 음원 삭제 기능이 생기면 재검토 필요 |
+
+### 6-3. 실사용 흐름 종단 테스트 (배포 서버, 실제 사진 사용)
+
+회원가입 → 로그인 → 사진 기반 추천(GPT-4o Vision 실제 호출) → 플레이리스트 저장(S3 커버 업로드) → 목록/상세 조회 → Presigned URL 실제 다운로드(커버·오디오) → 삭제(DB + S3 커버 삭제) 전 구간을 실제 사진 파일로 검증 완료. 에러 코드 18종(인증/검증/파일크기/rate limit 등)도 배포 서버에 직접 요청을 보내 전부 의도한 상태코드·메시지로 응답하는 것을 확인했다.

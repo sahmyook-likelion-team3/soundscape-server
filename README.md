@@ -2,7 +2,9 @@
 
 사용자가 촬영한 사진 한 장을 GPT-4o Vision으로 분석해, 그 공간의 장소·활동·날씨·시간대·분위기에 어울리는 음악 5곡을 추천하고 플레이리스트로 저장하는 서비스의 백엔드입니다.
 
-**기술 스택**: Spring Boot 4.0.7 / Spring Framework 7 / Jackson 3 / Java 17 / MySQL 8 / AWS S3 / GPT-4o Vision
+**기술 스택**: Spring Boot 4.0.7 / Spring Framework 7 / Jackson 3 / Java 17 / MySQL 8 / AWS S3 / GPT-4o Vision / Spring Security Crypto(BCrypt)
+
+**배포**: `https://1-201-116-122.nip.io` (가비아 클라우드, Nginx 리버스 프록시 + Let's Encrypt, 8/28 삭제 예정). 로컬 기본 주소는 `http://localhost:8080`.
 
 ---
 
@@ -37,7 +39,32 @@ docker build -t soundscape .
 docker run --env-file .env -p 8080:8080 soundscape
 ```
 
-`.env` 필수 항목: `SPRING_PROFILES_ACTIVE=prod`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `OPENAI_API_KEY`, `CORS_ALLOWED_ORIGINS`(프론트 도메인), `ADMIN_API_KEY`. `prod` 프로파일은 이 값들에 기본값이 없어서 누락 시 기동이 실패합니다(의도된 fail-closed 동작).
+`.env` 필수 항목: `SPRING_PROFILES_ACTIVE=prod`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `OPENAI_API_KEY`, `CORS_ALLOWED_ORIGINS`(프론트 도메인, 콤마로 여러 개), `ADMIN_API_KEY`. `prod` 프로파일은 이 값들에 기본값이 없어서 누락 시 기동이 실패합니다(의도된 fail-closed 동작).
+
+### HTTPS (운영 서버)
+
+운영 서버는 Docker 컨테이너가 `8080`에 직접 바인딩된 상태 위에, 호스트의 **Nginx**가 `80`/`443`을 리버스 프록시로 얹어 HTTPS를 제공합니다(프론트가 HTTPS(Vercel)에서 서빙되는데 백엔드가 HTTP면 브라우저가 Mixed Content로 요청 자체를 차단하기 때문에 필요). 도메인은 별도 구매 없이 `1-201-116-122.nip.io`(IP를 그대로 가리키는 무료 서비스) + Let's Encrypt 인증서를 사용합니다.
+
+```nginx
+# /etc/nginx/sites-available/soundscape (요지)
+server {
+    listen 80;
+    client_max_body_size 25M;   # 앱의 20MB 업로드 제한보다 살짝 크게 잡아, 20MB 이하 요청은 전부 앱까지 도달시키고
+                                 # 앱이 자체 JSON 에러(FILE_TOO_LARGE)로 응답하게 한다. 기본값(1MB)을 안 올리면
+                                 # 폰 사진 대부분(2~10MB)이 앱에 닿지도 못하고 Nginx가 먼저 차단해버린다.
+    server_name 1-201-116-122.nip.io;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    listen 443 ssl; # managed by Certbot
+    ...
+}
+```
+
+**알려진 제약**: `PlaylistController`의 IP 기반 rate limiter가 `request.getRemoteAddr()`만 신뢰하도록 되어 있는데(`X-Forwarded-For` 헤더를 일부러 안 믿음, 3.5절 참고), Nginx를 거치면 이 값이 항상 Nginx 자신의 IP로 잡혀서 **모든 사용자가 분당 10회 제한을 공유**하게 됩니다. `ForwardedHeaderFilter`로 고칠 수 있지만 8080이 여전히 외부에 직접 열려있어 우회 가능하므로 완전한 해결책은 아니며, 현재는 우선순위상 보류 중입니다.
 
 ---
 
@@ -52,18 +79,41 @@ docker run --env-file .env -p 8080:8080 soundscape
 
 ## 3. API
 
-Base URL: `http://localhost:8080/api/v1`
+Base URL: `http://localhost:8080/api/v1` (로컬) / `https://1-201-116-122.nip.io/api/v1` (운영)
 공통 에러 응답: `{ "timestamp", "status", "code", "message" }`
 
 현재 MVP는 **사진 기반 추천만 지원**합니다(장르 기반 추천은 스코프 아웃).
 
 | 기능 | Method | Endpoint | 인증 |
 | --- | --- | --- | --- |
+| 회원가입 | POST | `/auth/signup` | 불필요 |
+| 로그인 | POST | `/auth/login` | 불필요 |
 | 사진 기반 추천 | POST | `/playlists/recommendations/photo` | 불필요 (IP당 분당 10회 제한) |
 | 플레이리스트 저장 | POST | `/playlists` | `X-User-Id` |
 | 플레이리스트 목록 | GET | `/playlists` | `X-User-Id` |
 | 플레이리스트 상세 | GET | `/playlists/{playlistId}` | `X-User-Id` |
+| 플레이리스트 삭제 | DELETE | `/playlists/{playlistId}` | `X-User-Id` |
 | 음원 캐시 갱신(운영용) | POST | `/admin/music/reload` | `X-Admin-Key` |
+
+### 3.0 회원가입 / 로그인
+
+```
+POST /auth/signup
+Content-Type: application/json
+{ "username": "soundlover01", "password": "mypassword123", "nickname": "사운드러버" }
+```
+```
+POST /auth/login
+Content-Type: application/json
+{ "username": "soundlover01", "password": "mypassword123" }
+```
+
+응답(둘 다 동일 구조, signup은 201/login은 200):
+```json
+{ "userId": 2, "username": "soundlover01", "nickname": "사운드러버" }
+```
+
+세션/토큰을 발급하지 않습니다. 응답의 `userId`를 프론트가 저장해뒀다가, 이후 모든 요청에 그대로 `X-User-Id` 헤더로 실어 보내는 방식입니다(기존 임시 인증 구조를 그대로 재사용). `username`은 2~12자(영문/숫자/`_`), 중복 불가. `password`는 8~64자, BCrypt로 해시 저장. 로그인 실패는 아이디/비밀번호 중 무엇이 틀렸는지 구분하지 않고 항상 `INVALID_CREDENTIALS` 하나로 응답합니다(계정 존재 여부 추측 방지).
 
 ### 3.1 사진 기반 추천
 
@@ -155,7 +205,16 @@ GET /playlists/{id}     X-User-Id: 1
 
 상세 응답은 3.2 저장 응답과 동일한 구조입니다. 다른 사용자의 플레이리스트이거나 존재하지 않으면 동일하게 `404 PLAYLIST_NOT_FOUND`를 반환합니다(존재 여부를 유추할 수 없도록).
 
-### 3.4 관리자: 음원 캐시 갱신
+### 3.4 플레이리스트 삭제
+
+```
+DELETE /playlists/{playlistId}
+X-User-Id: 1
+```
+
+성공 시 `204 No Content`(바디 없음). 커버 이미지도 S3에서 함께 삭제하되, S3 삭제가 실패해도 DB 삭제 자체는 성공시킵니다(로그만 남김 — 삭제 흐름을 막지 않기 위한 의도적 설계). 존재하지 않거나 타인 소유면 3.3과 동일하게 `404 PLAYLIST_NOT_FOUND`.
+
+### 3.5 관리자: 음원 캐시 갱신
 
 ```
 POST /admin/music/reload
@@ -164,14 +223,17 @@ X-Admin-Key: {ADMIN_API_KEY 환경변수와 동일한 값}
 
 음원을 S3/DB에 추가한 뒤 서버 재시작 없이 인메모리 캐시를 다시 적재합니다. `ADMIN_API_KEY`가 비어있으면 항상 거부됩니다.
 
-### 3.5 에러 코드
+### 3.6 에러 코드
 
 | 코드 | 상태 | 설명 |
 | --- | --- | --- |
 | `USER_ID_REQUIRED` | 401 | `X-User-Id` 헤더 없음 |
 | `INVALID_USER` | 401 | 존재하지 않는 사용자 |
 | `ADMIN_UNAUTHORIZED` | 401 | `X-Admin-Key` 불일치/누락 |
-| `TOO_MANY_REQUESTS` | 429 | 사진 추천 rate limit 초과 (IP당 분당 10회) |
+| `TOO_MANY_REQUESTS` | 429 | 사진 추천 rate limit 초과 (IP당 분당 10회, 운영 환경에서는 Nginx로 인해 사실상 전체 사용자 공유 — 위 "HTTPS(운영 서버)" 절 참고) |
+| `DUPLICATE_USERNAME` | 409 | 회원가입 시 아이디 중복 |
+| `INVALID_CREDENTIALS` | 401 | 로그인 실패(아이디/비밀번호 불일치 — 구분 안 함) |
+| `INVALID_PASSWORD_FORMAT` | 400 | 정의만 해두고 현재 코드에서는 미사용(`@Size` 검증으로 대체됨) |
 | `INVALID_IMAGE` | 400 | 이미지 파일을 읽을 수 없음 |
 | `EMPTY_FILE` | 400 | 파일이 비어 있음 |
 | `FILE_TOO_LARGE` | 413 | 20MB 초과 |
@@ -185,7 +247,7 @@ X-Admin-Key: {ADMIN_API_KEY 환경변수와 동일한 값}
 | `S3_UPLOAD_FAILED` | 502 | S3 업로드 실패 |
 | `INTERNAL_ERROR` | 500 | 그 외 서버 오류 |
 
-### 3.6 Enum 값
+### 3.7 Enum 값
 
 ```
 Genre(음악 주장르, 곡마다 1개):
@@ -244,7 +306,9 @@ themeScore = |사진테마 ∩ 곡테마| / |사진테마|
 
 ## 5. 음원 확장
 
-`Genre` enum 7개 중 현재 DB 보유 곡은 `LOFI_INSTRUMENTAL`/`JAZZ_CLASSICAL_NEWAGE`/`POP` 뿐입니다. 나머지 4개 장르는 음원 추가 수급 예정입니다. 사진 기반 추천은 장르와 무관하게 전체 곡을 대상으로 하므로, 장르 보유 현황이 추천 자체를 막지는 않습니다.
+현재 DB 보유 곡은 총 **50곡**(`LOFI_INSTRUMENTAL` 16 / `JAZZ_CLASSICAL_NEWAGE` 14 / `POP` 20)입니다. `Genre` enum의 나머지 4개(`HIPHOP_RAP`/`RNB_SOUL`/`KPOP`/`JPOP_ANIME_OST`)는 아직 0곡입니다. 사진 기반 추천은 장르와 무관하게 전체 곡을 대상으로 하므로, 장르 보유 현황이 추천 자체를 막지는 않습니다.
+
+곡 메타데이터의 `genre`/`theme`는 반드시 `Genre`/`PlaylistTheme` enum에 정의된 값이어야 합니다. DB 컬럼 자체는 `VARCHAR`라 임의 문자열도 저장은 되지만, 정의되지 않은 값이 하나라도 있으면 `MusicCacheService`가 기동 시(그리고 `/admin/music/reload` 호출 시) 전체 캐시 로딩에 실패해 **그 음원뿐 아니라 서비스 전체가 죽습니다.** 새 음원을 추가할 때 원본 데이터의 장르/테마 이름이 이 프로젝트의 7개 표준값과 다르면(예: `INDIE_ACOUSTIC`, `POP_ELECTRONIC`, `WORKOUT_EXERCISE` 등 다른 어휘 체계) 반드시 가장 가까운 기존 값으로 매핑해서 넣어야 합니다.
 
 음원 추가 절차:
 1. S3에 MP3 업로드
