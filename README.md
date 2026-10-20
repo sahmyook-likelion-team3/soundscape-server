@@ -1,342 +1,87 @@
-# SoundScape Backend
+## 🎧 Soundscape | 사진 속 분위기를 음악으로 만나요
 
-사용자가 촬영한 사진 한 장을 GPT-4o Vision으로 분석해, 그 공간의 장소·활동·날씨·시간대·분위기에 어울리는 음악 5곡을 추천하고 플레이리스트로 저장하는 서비스의 백엔드입니다.
+### 사진 한 장으로 공간과 순간에 어울리는 음악을 추천하는 AI 음악 큐레이션 서비스
 
-**기술 스택**: Spring Boot 4.0.7 / Spring Framework 7 / Jackson 3 / Java 17 / MySQL 8 / AWS S3 / GPT-4o Vision / Spring Security Crypto(BCrypt)
+Soundscape는 사진 속 장소와 분위기를 분석해 그 순간에 어울리는 음악을 추천합니다.
+카페에서 공부할 때, 비 오는 풍경을 바라볼 때, 여행지에서 휴식할 때처럼 다양한 순간을 사진으로 담고, 추천받은 음악을 나만의 플레이리스트로 저장할 수 있습니다.
 
-**배포**: `https://1-201-116-122.nip.io` (가비아 클라우드, Nginx 리버스 프록시 + Let's Encrypt, 8/28 삭제 예정). 로컬 기본 주소는 `http://localhost:8080`.
+이 저장소는 Soundscape의 **백엔드 API 서버**입니다.
 
----
+### Tech Stack
 
-## 1. 실행 방법
+#### Backend
 
-### 로컬 개발
+<img alt="Java 17" src="https://img.shields.io/badge/Java%2017-007396?style=for-the-badge&logo=openjdk&logoColor=white"> <img alt="Spring Boot 4.0.7" src="https://img.shields.io/badge/Spring%20Boot%204.0.7-6DB33F?style=for-the-badge&logo=springboot&logoColor=white"> <img alt="Spring Data JPA" src="https://img.shields.io/badge/Spring%20Data%20JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white"> <img alt="Gradle" src="https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white">
 
-```bash
-# 1) DB 생성 + 시드
-mysql -u root -p < src/main/resources/db/schema.sql
-mysql -u root -p < src/main/resources/db/seed.sql
+#### AI / LLM
 
-# 2) 환경변수 (미설정 시 기본값은 application.properties 참고)
-export DB_USERNAME=soundscape
-export DB_PASSWORD=****
-export AWS_ACCESS_KEY=****
-export AWS_SECRET_KEY=****
-export OPENAI_API_KEY=sk-****
+<img alt="OpenAI GPT-4o" src="https://img.shields.io/badge/OpenAI%20GPT--4o-412991?style=for-the-badge&logoColor=white">
 
-# 3) 기동
-./gradlew bootRun
+#### Database
+
+<img alt="MySQL" src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white">
+
+#### Infrastructure / Storage
+
+<img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white"> <img alt="Amazon S3" src="https://img.shields.io/badge/Amazon%20S3-569A31?style=for-the-badge&logoColor=white">
+
+### Service Architecture
+
+```mermaid
+flowchart LR
+    Client[클라이언트] -->|사진 분석 · 추천 · 플레이리스트 API| Server[Spring Boot 서버]
+    Server -->|사진 분석 요청| AI[OpenAI GPT-4o]
+    AI -->|장소 · 활동 · 날씨 · 시간대 · 분위기| Server
+    Server <-->|회원 · 음원 메타데이터 · 플레이리스트| DB[(MySQL)]
+    DB -->|서버 시작 및 캐시 갱신 시 음원 적재| Cache[인메모리 음원 캐시]
+    Cache -->|추천 후보 음원| Server
+    Server -->|플레이리스트 커버 업로드| S3[Amazon S3]
+    Server -->|추천 결과 · Presigned URL 반환| Client
+    Client -->|Presigned URL로 음원 · 커버 조회| S3
 ```
 
-기동 로그에 `[MusicCache] 음원 N곡 적재 완료. 장르별 보유: ...` 가 찍히면 정상입니다.
+GPT-4o가 사진을 분석하면 서버가 분석 결과와 등록된 음원의 분위기·테마를 비교해 추천 곡을 선정합니다. 음원 파일과 플레이리스트 커버는 Amazon S3에 저장하며, 클라이언트에는 유효기간이 있는 접근 주소인 Presigned URL을 제공합니다.
 
-### 배포 (Docker)
+### Key Features
 
-`.env.example` 을 `.env` 로 복사해서 값을 채운 뒤:
+#### 📸 AI 사진 분석
 
-```bash
-docker build -t soundscape .
-docker run --env-file .env -p 8080:8080 soundscape
-```
+- 업로드한 사진에서 장소, 활동, 날씨, 시간대와 분위기를 분석
+- 밝기, 에너지, 차분함, 따뜻함, 긍정성, 몽환성의 6가지 수치로 사진의 분위기를 표현
+- 분석한 분위기에 어울리는 플레이리스트 제목 생성
 
-`.env` 필수 항목: `SPRING_PROFILES_ACTIVE=prod`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `OPENAI_API_KEY`, `CORS_ALLOWED_ORIGINS`(프론트 도메인, 콤마로 여러 개), `ADMIN_API_KEY`. `prod` 프로파일은 이 값들에 기본값이 없어서 누락 시 기동이 실패합니다(의도된 fail-closed 동작).
+#### 🎵 분위기 기반 음악 추천
 
-### HTTPS (운영 서버)
+- 사진과 음원의 분위기 유사도 및 테마 일치도를 비교해 최대 5곡 추천
+- 공부·집중, 휴식·힐링, 산책·드라이브·여행 등 사진에 어울리는 테마를 자동 선택
+- **분위기 유사도 70% + 테마 일치도 30%**를 반영한 점수로 추천 순서 결정
 
-운영 서버는 Docker 컨테이너가 `8080`에 직접 바인딩된 상태 위에, 호스트의 **Nginx**가 `80`/`443`을 리버스 프록시로 얹어 HTTPS를 제공합니다(프론트가 HTTPS(Vercel)에서 서빙되는데 백엔드가 HTTP면 브라우저가 Mixed Content로 요청 자체를 차단하기 때문에 필요). 도메인은 별도 구매 없이 `1-201-116-122.nip.io`(IP를 그대로 가리키는 무료 서비스) + Let's Encrypt 인증서를 사용합니다.
+> 추천은 서비스에 등록된 음원을 대상으로 합니다.
 
-```nginx
-# /etc/nginx/sites-available/soundscape (요지)
-server {
-    listen 80;
-    client_max_body_size 25M;   # 앱의 20MB 업로드 제한보다 살짝 크게 잡아, 20MB 이하 요청은 전부 앱까지 도달시키고
-                                 # 앱이 자체 JSON 에러(FILE_TOO_LARGE)로 응답하게 한다. 기본값(1MB)을 안 올리면
-                                 # 폰 사진 대부분(2~10MB)이 앱에 닿지도 못하고 Nginx가 먼저 차단해버린다.
-    server_name 1-201-116-122.nip.io;
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    listen 443 ssl; # managed by Certbot
-    ...
-}
-```
+#### 💿 나만의 플레이리스트
 
-**알려진 제약**: `PlaylistController`의 IP 기반 rate limiter가 `request.getRemoteAddr()`만 신뢰하도록 되어 있는데(`X-Forwarded-For` 헤더를 일부러 안 믿음, 3.5절 참고), Nginx를 거치면 이 값이 항상 Nginx 자신의 IP로 잡혀서 **모든 사용자가 분당 10회 제한을 공유**하게 됩니다. `ForwardedHeaderFilter`로 고칠 수 있지만 8080이 여전히 외부에 직접 열려있어 우회 가능하므로 완전한 해결책은 아니며, 현재는 우선순위상 보류 중입니다.
+- 추천받은 음악 5곡을 사진과 함께 플레이리스트로 저장
+- 업로드한 사진을 플레이리스트 커버로 활용
+- 사용자별 플레이리스트 목록·상세 조회 및 삭제
+- 음원 접근 URL과 곡 순서를 제공해 클라이언트의 재생 기능 지원
 
----
+#### 👤 회원가입 및 로그인
 
-## 2. S3 버킷 준비
+- 아이디, 비밀번호, 닉네임을 이용한 회원가입과 로그인
+- BCrypt로 비밀번호를 해시하여 저장
+- 현재 MVP는 로그인 응답의 사용자 ID를 `X-User-Id` 헤더로 전달하는 방식이며, 세션·JWT 인증은 구현되어 있지 않음
 
-- 버킷명: `soundscape-bucket-sangjin` / 리전: `ap-northeast-2`
-- 퍼블릭 액세스 차단 유지 (Presigned URL 로만 접근)
-- 업로드 경로는 `music` 테이블의 `audio_object_key` 와 정확히 일치해야 합니다.
-- 커버 이미지는 서버가 플레이리스트 저장 시점에 `covers/{uuid}.jpg` 로 자동 업로드합니다(추천 단계에서는 업로드하지 않음).
+### Backend Highlights
 
----
+- **음원 메타데이터 캐싱**: 서버 시작 시 음원 정보를 메모리에 적재하여 추천 과정의 반복적인 DB 조회를 줄임
+- **이미지 전처리**: AI 분석 전 사진의 최대 변을 기본 512px로 축소하여 전송 크기를 줄임
+- **추천 요청 제한**: 요청 IP를 기준으로 사진 추천을 분당 10회로 제한
+- **캐시 갱신 API**: 음원 추가 후 서버 재시작 없이 추천 후보 데이터를 다시 적재
 
-## 3. API
+### Documentation
 
-Base URL: `http://localhost:8080/api/v1` (로컬) / `https://1-201-116-122.nip.io/api/v1` (운영)
-공통 에러 응답: `{ "timestamp", "status", "code", "message" }`
+- [실행 방법 · API 명세 · 추천 알고리즘](docs/BACKEND_GUIDE.md)
+- [회원가입 · 로그인 API 연동 가이드](docs/AUTH_API_HANDOFF.md)
+- [트러블슈팅 기록](TROUBLESHOOTING.md)
 
-현재 MVP는 **사진 기반 추천만 지원**합니다(장르 기반 추천은 스코프 아웃).
-
-| 기능 | Method | Endpoint | 인증 |
-| --- | --- | --- | --- |
-| 회원가입 | POST | `/auth/signup` | 불필요 |
-| 로그인 | POST | `/auth/login` | 불필요 |
-| 사진 기반 추천 | POST | `/playlists/recommendations/photo` | 불필요 (IP당 분당 10회 제한) |
-| 플레이리스트 저장 | POST | `/playlists` | `X-User-Id` |
-| 플레이리스트 목록 | GET | `/playlists` | `X-User-Id` |
-| 플레이리스트 상세 | GET | `/playlists/{playlistId}` | `X-User-Id` |
-| 플레이리스트 삭제 | DELETE | `/playlists/{playlistId}` | `X-User-Id` |
-| 음원 캐시 갱신(운영용) | POST | `/admin/music/reload` | `X-Admin-Key` |
-
-### 3.0 회원가입 / 로그인
-
-```
-POST /auth/signup
-Content-Type: application/json
-{ "username": "soundlover01", "password": "mypassword123", "nickname": "사운드러버" }
-```
-```
-POST /auth/login
-Content-Type: application/json
-{ "username": "soundlover01", "password": "mypassword123" }
-```
-
-응답(둘 다 동일 구조, signup은 201/login은 200):
-```json
-{ "userId": 2, "username": "soundlover01", "nickname": "사운드러버" }
-```
-
-세션/토큰을 발급하지 않습니다. 응답의 `userId`를 프론트가 저장해뒀다가, 이후 모든 요청에 그대로 `X-User-Id` 헤더로 실어 보내는 방식입니다(기존 임시 인증 구조를 그대로 재사용). `username`은 2~12자(영문/숫자/`_`), 중복 불가. `password`는 8~64자, BCrypt로 해시 저장. 로그인 실패는 아이디/비밀번호 중 무엇이 틀렸는지 구분하지 않고 항상 `INVALID_CREDENTIALS` 하나로 응답합니다(계정 존재 여부 추측 방지).
-
-### 3.1 사진 기반 추천
-
-```
-POST /playlists/recommendations/photo
-Content-Type: multipart/form-data
-
-image: (File, 필수)
-```
-
-```json
-{
-  "title": "비 오는 밤의 카페",
-  "sourceType": "PHOTO_RECOMMENDATION",
-  "sourceGenre": null,
-  "analysis": {
-    "place": "CAFE_LIBRARY",
-    "activity": "STUDY_WORK",
-    "weather": "RAINY",
-    "time": "NIGHT",
-    "mood": {
-      "brightness": 0.25, "energy": 0.30, "calmness": 0.85,
-      "warmth": 0.75, "positivity": 0.45, "dreaminess": 0.80
-    }
-  },
-  "convertedThemes": ["STUDY_FOCUS", "RAINY_DAY", "NIGHT_DREAMY"],
-  "musicList": [
-    {
-      "musicId": 8, "title": "Rainy Night Study", "artist": "Pixabay Creator",
-      "genre": "LOFI_INSTRUMENTAL", "durationSeconds": 183,
-      "themes": ["STUDY_FOCUS", "RAINY_DAY"],
-      "audioUrl": "https://s3-presigned-url...",
-      "score": 0.9234, "position": 1
-    }
-  ]
-}
-```
-
-`title`/`analysis`는 AI가 사진 한 장으로 산출하고, 그 결과는 DB에 저장되지 않습니다. `musicList`는 항상 5곡입니다.
-
-### 3.2 플레이리스트 저장
-
-```
-POST /playlists
-X-User-Id: 1
-Content-Type: multipart/form-data
-
-request: (JSON Blob, 필수) { "title": "...", "sourceType": "PHOTO_RECOMMENDATION", "musicIds": [8,21,4,13,9] }
-image:   (File, 필수 — 추천에 썼던 원본 사진)
-```
-
-응답 201:
-
-```json
-{
-  "playlistId": 10,
-  "title": "비 오는 밤의 카페",
-  "sourceType": "PHOTO_RECOMMENDATION",
-  "sourceGenre": null,
-  "coverImageUrl": "https://s3-presigned-url...",
-  "createdAt": "2026-08-16T16:40:00",
-  "musicList": [ /* 3.1 과 동일한 형태, score 는 null */ ]
-}
-```
-
-검증 규칙: `musicIds`는 정확히 5개, 중복 불가, 전부 존재하는 음악 ID, 사진 필수. 요청 본문에 `userId`는 넣지 않습니다(헤더로만 식별).
-
-### 3.3 플레이리스트 목록 / 상세
-
-```
-GET /playlists          X-User-Id: 1
-GET /playlists/{id}     X-User-Id: 1
-```
-
-목록 응답:
-
-```json
-{
-  "playlists": [
-    {
-      "playlistId": 10, "title": "비 오는 밤의 카페",
-      "sourceType": "PHOTO_RECOMMENDATION", "sourceGenre": null,
-      "coverImageUrl": "https://s3-presigned-url...",
-      "createdAt": "2026-08-16T16:40:00"
-    }
-  ]
-}
-```
-
-상세 응답은 3.2 저장 응답과 동일한 구조입니다. 다른 사용자의 플레이리스트이거나 존재하지 않으면 동일하게 `404 PLAYLIST_NOT_FOUND`를 반환합니다(존재 여부를 유추할 수 없도록).
-
-### 3.4 플레이리스트 삭제
-
-```
-DELETE /playlists/{playlistId}
-X-User-Id: 1
-```
-
-성공 시 `204 No Content`(바디 없음). 커버 이미지도 S3에서 함께 삭제하되, S3 삭제가 실패해도 DB 삭제 자체는 성공시킵니다(로그만 남김 — 삭제 흐름을 막지 않기 위한 의도적 설계). 존재하지 않거나 타인 소유면 3.3과 동일하게 `404 PLAYLIST_NOT_FOUND`.
-
-### 3.5 관리자: 음원 캐시 갱신
-
-```
-POST /admin/music/reload
-X-Admin-Key: {ADMIN_API_KEY 환경변수와 동일한 값}
-```
-
-음원을 S3/DB에 추가한 뒤 서버 재시작 없이 인메모리 캐시를 다시 적재합니다. `ADMIN_API_KEY`가 비어있으면 항상 거부됩니다.
-
-### 3.6 에러 코드
-
-| 코드 | 상태 | 설명 |
-| --- | --- | --- |
-| `USER_ID_REQUIRED` | 401 | `X-User-Id` 헤더 없음 |
-| `INVALID_USER` | 401 | 존재하지 않는 사용자 |
-| `ADMIN_UNAUTHORIZED` | 401 | `X-Admin-Key` 불일치/누락 |
-| `TOO_MANY_REQUESTS` | 429 | 사진 추천 rate limit 초과 (IP당 분당 10회, 운영 환경에서는 Nginx로 인해 사실상 전체 사용자 공유 — 위 "HTTPS(운영 서버)" 절 참고) |
-| `DUPLICATE_USERNAME` | 409 | 회원가입 시 아이디 중복 |
-| `INVALID_CREDENTIALS` | 401 | 로그인 실패(아이디/비밀번호 불일치 — 구분 안 함) |
-| `INVALID_PASSWORD_FORMAT` | 400 | 정의만 해두고 현재 코드에서는 미사용(`@Size` 검증으로 대체됨) |
-| `INVALID_IMAGE` | 400 | 이미지 파일을 읽을 수 없음 |
-| `EMPTY_FILE` | 400 | 파일이 비어 있음 |
-| `FILE_TOO_LARGE` | 413 | 20MB 초과 |
-| `INVALID_REQUEST` | 400 | 요청 값 형식 오류(필수 파트 누락, enum 값 오류 등) |
-| `INVALID_MUSIC_COUNT` | 400 | `musicIds`가 5개가 아님 |
-| `DUPLICATE_MUSIC` | 400 | `musicIds` 중복 |
-| `IMAGE_REQUIRED` | 400 | 저장 요청에 사진 누락 |
-| `MUSIC_NOT_FOUND` | 404 | 존재하지 않는 음악 ID 포함 |
-| `PLAYLIST_NOT_FOUND` | 404 | 플레이리스트 없음 또는 타인 소유 |
-| `VISION_ANALYSIS_FAILED` | 502 | OpenAI 분석 실패 |
-| `S3_UPLOAD_FAILED` | 502 | S3 업로드 실패 |
-| `INTERNAL_ERROR` | 500 | 그 외 서버 오류 |
-
-### 3.7 Enum 값
-
-```
-Genre(음악 주장르, 곡마다 1개):
-  LOFI_INSTRUMENTAL, JAZZ_CLASSICAL_NEWAGE, POP, HIPHOP_RAP, RNB_SOUL, KPOP, JPOP_ANIME_OST
-
-PlaylistTheme(음악 테마, 곡마다 여러 개 가능):
-  STUDY_FOCUS, REST_HEALING, WALK_DRIVE_TRAVEL, RAINY_DAY, NIGHT_DREAMY, BRIGHT_DAY, PARTY_ENERGY
-
-PlaceType:    CAFE_LIBRARY, ROOM_HOME, STREET_CITY, TRANSPORT, NATURE_TRAVEL, SOCIAL_SPACE, OTHER
-ActivityType: STUDY_WORK, REST_HEALING, WALK_DRIVE_TRAVEL, EATING_CAFE, SOCIAL_PARTY, UNKNOWN
-WeatherType:  SUNNY, CLOUDY, RAINY, SNOWY, UNKNOWN
-TimeType:     DAY, SUNSET, NIGHT, UNKNOWN
-```
-
----
-
-## 4. 추천 알고리즘
-
-### 4.1 사진 → 테마 변환 (`PhotoThemeScoringService`)
-
-AI가 place/activity/weather/time/mood를 산출하면, 고정 규칙표로 테마별 점수를 매겨 0.5점 이상인 테마를 최대 3개(점수 높은 순) 고릅니다. 하나도 없으면 최고점 테마 1개, 전부 0점이면 `REST_HEALING`을 기본값으로 씁니다. 동점이면 `PlaylistTheme` enum 선언 순서로 우선순위를 정합니다.
-
-| 분석값 | 변환 테마 | 점수 |
-| --- | --- | --- |
-| activity=STUDY_WORK | STUDY_FOCUS | +1.0 |
-| activity=REST_HEALING | REST_HEALING | +1.0 |
-| activity=WALK_DRIVE_TRAVEL | WALK_DRIVE_TRAVEL | +1.0 |
-| activity=SOCIAL_PARTY | PARTY_ENERGY | +1.0 |
-| weather=RAINY | RAINY_DAY | +0.8 |
-| weather=SUNNY | BRIGHT_DAY | +0.5 |
-| time=NIGHT | NIGHT_DREAMY | +0.7 |
-| time=DAY | BRIGHT_DAY | +0.3 |
-| place=CAFE_LIBRARY | STUDY_FOCUS | +0.2 |
-| place=ROOM_HOME | REST_HEALING | +0.2 |
-| place=TRANSPORT / NATURE_TRAVEL | WALK_DRIVE_TRAVEL | +0.3 |
-| place=SOCIAL_SPACE | PARTY_ENERGY | +0.3 |
-| calmness ≥ 0.7 | REST_HEALING | +0.2 |
-| dreaminess ≥ 0.7 | NIGHT_DREAMY | +0.2 |
-| energy ≥ 0.7 & positivity ≥ 0.6 | PARTY_ENERGY | +0.2 |
-| brightness ≥ 0.7 & positivity ≥ 0.6 | BRIGHT_DAY | +0.2 |
-
-### 4.2 곡 추천 점수 (`MusicRecommendationService`)
-
-```
-Final Score = (moodScore × 0.70) + (themeScore × 0.30)
-
-moodScore  = 1 - (d / √6)        // d = 6차원 유클리드 거리, √6 ≈ 2.4495 = 최대 거리
-themeScore = |사진테마 ∩ 곡테마| / |사진테마|
-```
-
-- 두 점수 모두 0.0 ~ 1.0으로 정규화되어 가중합이 그대로 유효합니다.
-- `Music.moodVector()`와 `PhotoAnalysisResult.moodVector()`의 **인덱스 순서는 반드시 동일**해야 합니다(brightness, energy, calmness, warmth, positivity, dreaminess).
-- `MAX_PER_ARTIST`(현재 5, 비활성)를 낮추면 동일 아티스트 편중을 제한할 수 있습니다.
-
----
-
-## 5. 음원 확장
-
-현재 DB 보유 곡은 총 **50곡**(`LOFI_INSTRUMENTAL` 16 / `JAZZ_CLASSICAL_NEWAGE` 14 / `POP` 20)입니다. `Genre` enum의 나머지 4개(`HIPHOP_RAP`/`RNB_SOUL`/`KPOP`/`JPOP_ANIME_OST`)는 아직 0곡입니다. 사진 기반 추천은 장르와 무관하게 전체 곡을 대상으로 하므로, 장르 보유 현황이 추천 자체를 막지는 않습니다.
-
-곡 메타데이터의 `genre`/`theme`는 반드시 `Genre`/`PlaylistTheme` enum에 정의된 값이어야 합니다. DB 컬럼 자체는 `VARCHAR`라 임의 문자열도 저장은 되지만, 정의되지 않은 값이 하나라도 있으면 `MusicCacheService`가 기동 시(그리고 `/admin/music/reload` 호출 시) 전체 캐시 로딩에 실패해 **그 음원뿐 아니라 서비스 전체가 죽습니다.** 새 음원을 추가할 때 원본 데이터의 장르/테마 이름이 이 프로젝트의 7개 표준값과 다르면(예: `INDIE_ACOUSTIC`, `POP_ELECTRONIC`, `WORKOUT_EXERCISE` 등 다른 어휘 체계) 반드시 가장 가까운 기존 값으로 매핑해서 넣어야 합니다.
-
-음원 추가 절차:
-1. S3에 MP3 업로드
-2. `music` / `music_theme` INSERT
-3. `POST /admin/music/reload` 호출 (서버 재시작 불필요)
-
----
-
-## 6. 성능 설계
-
-| 항목 | 처리 |
-| --- | --- |
-| 음원 조회 | `@PostConstruct`로 전량 인메모리 적재. 추천 시 DB 접근 0회 |
-| music_theme | `@ElementCollection` 매핑. 복합키 Entity/Repository 불필요 |
-| 초기 로딩 | `findAllWithThemes()` fetch join으로 N+1 제거 |
-| Vision 지연 | 512px 리사이즈 + `detail: low` + `json_schema` strict |
-| 플리 상세 | `music_id`만 저장하고 캐시에서 해석 → music 테이블 조인 없음 |
-| Rate limit | 메모리 기반 슬라이딩 윈도우(`RateLimiter`), 10분마다 오래된 IP 항목 정리 |
-
----
-
-## 7. Spring Boot 4 관련 주의사항
-
-| 항목 | 내용 |
-| --- | --- |
-| Java | Boot 4.0.x는 Java 21 이상을 권장하지만 필수는 아님. 이 프로젝트는 Java 17 툴체인으로 문제없이 동작 |
-| 스타터 이름 | `spring-boot-starter-web` → `spring-boot-starter-webmvc` |
-| Jackson | Jackson 3 기본 탑재. `com.fasterxml.jackson.databind` → `tools.jackson.databind`. **애노테이션은 `com.fasterxml.jackson.annotation` 유지** |
-| HTTP 타임아웃 | `spring.http.client.*` → `spring.http.clients.*` |
-| RestClient | `body()`가 JSpecify nullable로 명시됨. null 검사 필수 |
-| Hibernate | Hibernate 7. dialect 명시 불필요 |
+> 실행 및 API 가이드는 기존 README를 보존한 문서입니다. 문서에 기록된 배포 주소·운영 일정·음원 수는 작성 당시 기준이며, 현재 운영 상태를 보장하지 않습니다.
